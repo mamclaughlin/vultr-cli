@@ -47,6 +47,8 @@ func LoadBalancer() *cobra.Command {
 	lbCreate.Flags().StringP("ssl-redirect", "s", "", "(optional) if true, this will redirect HTTP traffic to HTTPS. You must have an HTTPS rule and SSL certificate installed on the load balancer to enable this option.")
 	lbCreate.Flags().StringP("proxy-protocol", "p", "", "(optional) if true, you must configure backend nodes to accept Proxy protocol.")
 	lbCreate.Flags().StringArrayP("forwarding-rules", "f", []string{}, "(optional) a comma-separated, key-value pair list of forwarding rules. Use \"\" between each new rule. E.g: `frontend_port:80,frontend_protocol:http,backend_port:80,backend_protocol:http`")
+	lbCreate.Flags().StringArrayP("firewall-rules", "", []string{}, "(optional) a comma-separated, key-value pair list of firewall rules. Use \"\" between each new rule. E.g: `port:80,ip_type:v4,source:123.123.123.1`")
+	lbCreate.Flags().StringP("private-network", "n", "", "(optional) the id of the private network you wish to use for your load balancer.")
 
 	lbCreate.Flags().String("protocol", "http", "(optional) the protocol to use for health checks. | https, http, tcp")
 	lbCreate.Flags().Int("port", 80, "(optional) the port to use for health checks.")
@@ -73,15 +75,17 @@ func LoadBalancer() *cobra.Command {
 	lbUpdate.Flags().StringP("balancing-algorithm", "b", "roundrobin", "(optional) balancing algorithm that determines server selection | roundrobin or leastconn")
 	lbUpdate.Flags().StringP("ssl-redirect", "s", "", "(optional) if true, this will redirect HTTP traffic to HTTPS. You must have an HTTPS rule and SSL certificate installed on the load balancer to enable this option.")
 	lbUpdate.Flags().StringP("proxy-protocol", "p", "", "(optional) if true, you must configure backend nodes to accept Proxy protocol.")
+	lbUpdate.Flags().StringP("private-network", "n", "", "(optional) the id of the private network you wish to use for your load balancer.")
 	lbUpdate.Flags().StringArrayP("forwarding-rules", "f", []string{}, "(optional) a comma-separated, key-value pair list of forwarding rules. Use \"\" between each new rule. E.g: `frontend_port:80,frontend_protocol:http,backend_port:80,backend_protocol:http`")
+	lbUpdate.Flags().StringArrayP("firewall-rules", "", []string{}, "(optional) a comma-separated, key-value pair list of firewall rules. Use \"\" between each new rule. E.g: `port:80,ip_type:v4,source:123.123.123.1`")
 
 	lbUpdate.Flags().String("protocol", "http", "(optional) the protocol to use for health checks. | https, http, tcp")
 	lbUpdate.Flags().Int("port", 80, "(optional) the port to use for health checks.")
 	lbUpdate.Flags().String("path", "/", "(optional) HTTP Path to check. only applies if protocol is HTTP or HTTPS.")
-	lbUpdate.Flags().IntP("check-interval", "c", 15, "(optional) interval between health checks.")
-	lbUpdate.Flags().IntP("response-timeout", "t", 15, "(optional) timeout before health check fails.")
-	lbUpdate.Flags().IntP("unhealthy-threshold", "u", 15, "(optional) number times a check must fail before becoming unhealthy.")
-	lbUpdate.Flags().Int("healthy-threshold", 15, "(optional) number times a check must succeed before returning to healthy status.")
+	lbUpdate.Flags().IntP("check-interval", "c", 0, "(optional) interval between health checks.")
+	lbUpdate.Flags().IntP("response-timeout", "t", 0, "(optional) timeout before health check fails.")
+	lbUpdate.Flags().IntP("unhealthy-threshold", "u", 0, "(optional) number times a check must fail before becoming unhealthy.")
+	lbUpdate.Flags().Int("healthy-threshold", 0, "(optional) number times a check must succeed before returning to healthy status.")
 
 	lbUpdate.Flags().String("cookie-name", "", "(optional) the cookie name to make sticky.")
 
@@ -92,16 +96,20 @@ func LoadBalancer() *cobra.Command {
 	lbUpdate.Flags().StringP("label", "l", "", "(optional) the label for your load balancer.")
 	lbUpdate.Flags().StringSliceP("instances", "i", []string{}, "(optional) an array of instances IDs that you want attached to the load balancer.")
 
-	// Rules SubCommands
+	// Forwarding Rules SubCommands
 	rulesCmd := &cobra.Command{
 		Use:   "rule",
-		Short: "create/delete/list rules for an load balancer",
+		Short: "create/delete/list forwarding rules for a load balancer",
 		Long:  ``,
 	}
 
-	// rule list
+	// forwarding rule list
 	ruleList.Flags().StringP("cursor", "c", "", "(optional) cursor for paging.")
 	ruleList.Flags().IntP("per-page", "p", 100, "(optional) Number of items requested per page. Default is 100 and Max is 500.")
+
+	// firewall rule list
+	fwRuleList.Flags().StringP("cursor", "c", "", "(optional) cursor for paging.")
+	fwRuleList.Flags().IntP("per-page", "p", 100, "(optional) Number of items requested per page. Default is 100 and Max is 500.")
 
 	// rule create
 	ruleCreate.Flags().String("frontend-protocol", "http", "the protocol on the Load Balancer to forward to the backend. | HTTP, HTTPS, TCP")
@@ -114,8 +122,18 @@ func LoadBalancer() *cobra.Command {
 	ruleCreate.MarkFlagRequired("frontend-port")
 	ruleCreate.MarkFlagRequired("backend-port")
 
-	rulesCmd.AddCommand(ruleCreate, ruleDelete, ruleGet, ruleList)
+	rulesCmd.AddCommand(ruleCreate, ruleDelete, ruleGet, ruleList, fwRuleList, fwRuleGet)
 	lbCmd.AddCommand(rulesCmd)
+
+	// Firewall Rules SubCommands
+	fwrulesCmd := &cobra.Command{
+		Use:   "firewall-rule",
+		Short: "list/get firewall rules for a load balancer",
+		Long:  ``,
+	}
+
+	fwrulesCmd.AddCommand(fwRuleList, fwRuleGet)
+	lbCmd.AddCommand(fwrulesCmd)
 
 	return lbCmd
 }
@@ -131,8 +149,10 @@ var lbCreate = &cobra.Command{
 		algorithm, _ := cmd.Flags().GetString("balancing-algorithm")
 		sslRedirect, _ := cmd.Flags().GetString("ssl-redirect")
 		proxyProtocol, _ := cmd.Flags().GetString("proxy-protocol")
+		privateNetwork, _ := cmd.Flags().GetString("private-network")
 
 		fwRules, _ := cmd.Flags().GetStringArray("forwarding-rules")
+		firewallRules, _ := cmd.Flags().GetStringArray("firewall-rules")
 
 		protocol, _ := cmd.Flags().GetString("protocol")
 		port, _ := cmd.Flags().GetInt("port")
@@ -171,6 +191,7 @@ var lbCreate = &cobra.Command{
 			BalancingAlgorithm: algorithm,
 			HealthCheck:        healthCheck,
 			SSL:                ssl,
+			PrivateNetwork:     govultr.StringToStringPtr(privateNetwork),
 		}
 
 		if cookieName != "" {
@@ -187,6 +208,16 @@ var lbCreate = &cobra.Command{
 
 		if len(rules) > 0 {
 			options.ForwardingRules = rules
+		}
+
+		fireRules, err2 := formatFirewallRules(firewallRules)
+		if err2 != nil {
+			fmt.Printf("error creating load balancer : %v\n", err)
+			os.Exit(1)
+		}
+
+		if len(fireRules) > 0 {
+			options.FirewallRules = fireRules
 		}
 
 		if sslRedirect == "yes" {
@@ -288,8 +319,10 @@ var lbUpdate = &cobra.Command{
 		sslRedirect, _ := cmd.Flags().GetString("ssl-redirect")
 		proxyProtocol, _ := cmd.Flags().GetString("proxy-protocol")
 		cookieName, _ := cmd.Flags().GetString("cookie-name")
+		privateNetwork, _ := cmd.Flags().GetString("private-network")
 
 		fwRules, _ := cmd.Flags().GetStringArray("forwarding-rules")
+		firewallRules, _ := cmd.Flags().GetStringArray("firewall-rules")
 
 		protocol, _ := cmd.Flags().GetString("protocol")
 		port, _ := cmd.Flags().GetInt("port")
@@ -307,17 +340,47 @@ var lbUpdate = &cobra.Command{
 
 		options := &govultr.LoadBalancerReq{}
 
-		rules, err := formatFWRules(fwRules)
+		lb, err := client.LoadBalancer.Get(context.Background(), id)
 		if err != nil {
-			fmt.Printf("error updating load balancer : %v\n", err)
+			fmt.Printf("error getting load balancer : %v\n", err)
 			os.Exit(1)
 		}
 
-		if len(rules) > 0 {
-			options.ForwardingRules = rules
+		if len(fwRules) > 0 {
+			rules, err := formatFWRules(fwRules)
+			if err != nil {
+				fmt.Printf("error updating load balancer : %v\n", err)
+				os.Exit(1)
+			}
+
+			if len(rules) > 0 {
+				options.ForwardingRules = rules
+			}
+		}
+
+		if len(firewallRules) > 0 {
+			frules, err := formatFirewallRules(firewallRules)
+			if err != nil {
+				fmt.Printf("error updating load balancer : %v\n", err)
+				os.Exit(1)
+			}
+
+			if len(frules) > 0 {
+				options.FirewallRules = frules
+			}
 		}
 
 		// Health
+		options.HealthCheck = &govultr.HealthCheck{
+			Protocol:           lb.HealthCheck.Protocol,
+			Path:               lb.HealthCheck.Path,
+			Port:               lb.HealthCheck.Port,
+			CheckInterval:      lb.HealthCheck.CheckInterval,
+			ResponseTimeout:    lb.HealthCheck.ResponseTimeout,
+			UnhealthyThreshold: lb.HealthCheck.UnhealthyThreshold,
+			HealthyThreshold:   lb.HealthCheck.HealthyThreshold,
+		}
+
 		if port != 0 {
 			options.HealthCheck.Port = port
 		}
@@ -372,8 +435,14 @@ var lbUpdate = &cobra.Command{
 			options.SSLRedirect = govultr.BoolToBoolPtr(false)
 		}
 
+		if privateNetwork != "" {
+			options.PrivateNetwork = govultr.StringToStringPtr(privateNetwork)
+		}
+
 		if cookieName != "" {
-			options.StickySessions.CookieName = cookieName
+			options.StickySessions = &govultr.StickySessions{
+				CookieName: cookieName,
+			}
 		}
 
 		if algorithm != "" {
@@ -461,6 +530,7 @@ var ruleGet = &cobra.Command{
 		printer.LoadBalancerRule(rule)
 	},
 }
+
 var ruleDelete = &cobra.Command{
 	Use:     "delete rule <loadBalancerID> <ruleID>",
 	Short:   "deletes a load balancer forwarding rule",
@@ -482,6 +552,52 @@ var ruleDelete = &cobra.Command{
 		}
 
 		fmt.Println("Deleted load balancer rule")
+	},
+}
+
+var fwRuleList = &cobra.Command{
+	Use:   "list firewall-rule <loadBalancerID>",
+	Short: "lists a load balancers firewall rules",
+	Long:  ``,
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) < 1 {
+			return errors.New("please provide a loadBalancerID")
+		}
+		return nil
+	},
+	Run: func(cmd *cobra.Command, args []string) {
+		id := args[0]
+		options := getPaging(cmd)
+		rules, meta, err := client.LoadBalancer.ListFirewallRules(context.Background(), id, options)
+		if err != nil {
+			fmt.Printf("error listing load balancer rules : %v\n", err)
+			os.Exit(1)
+		}
+
+		printer.LoadBalancerFWRuleList(rules, meta)
+	},
+}
+
+var fwRuleGet = &cobra.Command{
+	Use:   "get firewall-rule <loadBalancerID> <ruleID>",
+	Short: "Gets a load balancer firewall rule",
+	Long:  ``,
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) < 2 {
+			return errors.New("please provide a loadBalancerID and ruleID")
+		}
+		return nil
+	},
+	Run: func(cmd *cobra.Command, args []string) {
+		id := args[0]
+		ruleID := args[1]
+		rule, err := client.LoadBalancer.GetFirewallRule(context.Background(), id, ruleID)
+		if err != nil {
+			fmt.Printf("error getting load balancer firewall rule : %v\n", err)
+			os.Exit(1)
+		}
+
+		printer.LoadBalancerFWRule(rule)
 	},
 }
 
@@ -519,6 +635,46 @@ func formatFWRules(rules []string) ([]govultr.ForwardingRule, error) {
 			case field == "backend_port":
 				port, _ := strconv.Atoi(val)
 				rule.BackendPort = port
+			}
+		}
+
+		formattedList = append(formattedList, rule)
+	}
+
+	return formattedList, nil
+}
+
+// formatFirewallRules parses firewall rules into proper format
+func formatFirewallRules(rules []string) ([]govultr.LBFirewallRule, error) {
+	var formattedList []govultr.LBFirewallRule
+	rulesList := strings.Split(rules[0], ",,")
+
+	for _, r := range rulesList {
+		rule := govultr.LBFirewallRule{}
+		fwRule := strings.Split(r, ",")
+
+		if len(fwRule) != 3 {
+			return nil, fmt.Errorf("unable to format firewall rules. each rule must include ip type, protocol, and source")
+		}
+
+		for _, f := range fwRule {
+			ruleKeyVal := strings.Split(f, ":")
+
+			if len(ruleKeyVal) != 2 {
+				return nil, fmt.Errorf("invalid firewall rule format")
+			}
+
+			field := ruleKeyVal[0]
+			val := ruleKeyVal[1]
+
+			switch true {
+			case field == "port":
+				port, _ := strconv.Atoi(val)
+				rule.Port = port
+			case field == "source":
+				rule.Source = val
+			case field == "ip_type":
+				rule.IPType = val
 			}
 		}
 
