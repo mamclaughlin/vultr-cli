@@ -70,7 +70,7 @@ func Instance() *cobra.Command {
 	instanceCreate.Flags().BoolP("auto-backup", "b", false, "enable auto backups | true or false")
 	instanceCreate.Flags().IntP("app", "a", 0, "application ID you want this instance to have")
 	instanceCreate.Flags().StringP("userdata", "u", "", "plain text userdata you want to give this instance which the CLI will base64 encode")
-	instanceCreate.Flags().BoolP("notify", "n", true, "notify when instance has been created | true or false")
+	instanceCreate.Flags().StringP("notify", "n", "false", "(optional) notify when instance has been created | true or false. Default false")
 	instanceCreate.Flags().BoolP("ddos", "d", false, "enable ddos protection | true or false")
 	instanceCreate.Flags().StringP("reserved-ipv4", "", "", "ip address of the floating IP to use as the main IP for this instance")
 	instanceCreate.Flags().StringP("host", "", "", "The hostname to assign to this instance")
@@ -993,7 +993,8 @@ var instanceCreate = &cobra.Command{
 		backup, _ := cmd.Flags().GetBool("auto-backup")
 		app, _ := cmd.Flags().GetInt("app")
 		userData, _ := cmd.Flags().GetString("userdata")
-		notify, _ := cmd.Flags().GetBool("notify")
+		notify, _ := cmd.Flags().GetString("notify")
+
 		ddos, _ := cmd.Flags().GetBool("ddos")
 		ipv4, _ := cmd.Flags().GetString("reserved-ipv4")
 		host, _ := cmd.Flags().GetString("host")
@@ -1049,7 +1050,7 @@ var instanceCreate = &cobra.Command{
 		if ddos {
 			opt.DDOSProtection = govultr.BoolToBoolPtr(true)
 		}
-		if notify {
+		if notify == "true" {
 			opt.ActivationEmail = govultr.BoolToBoolPtr(true)
 		}
 		if backup {

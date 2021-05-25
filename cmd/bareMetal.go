@@ -65,7 +65,7 @@ func BareMetal() *cobra.Command {
 	bareMetalCreate.Flags().StringSliceP("ssh", "k", []string{}, "(optional) Comma separated list of SSH key IDs that will be added to the server.")
 	bareMetalCreate.Flags().IntP("app", "a", 0, "(optional) ID of the application that will be installed on the server.")
 	bareMetalCreate.Flags().StringP("userdata", "u", "", "(optional) A generic data store, which some provisioning tools and cloud operating systems use as a configuration file.")
-	bareMetalCreate.Flags().StringP("notify", "n", "", "(optional) Whether an activation email will be sent when the server is ready. Possible values: 'yes', 'no'. Defaults to 'yes'.")
+	bareMetalCreate.Flags().StringP("notify", "n", "", "(optional) Whether an activation email will be sent when the server is ready. Possible values: 'yes', 'no'. Defaults to 'no'.")
 	bareMetalCreate.Flags().StringP("hostname", "m", "", "(optional) The hostname to assign to the server.")
 	bareMetalCreate.Flags().StringP("tag", "t", "", "(optional) The tag to assign to the server.")
 	bareMetalCreate.Flags().StringP("ripv4", "v", "", "(optional) IP address of the floating IP to use as the main IP of this server.")
